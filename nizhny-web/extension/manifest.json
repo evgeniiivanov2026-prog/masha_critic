@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Нижегородская формула",
+  "version": "8.0.0",
+  "description": "Оценка открытой страницы локальным сервером формулы v8.0. Скоринг на сервере, обучение только у администратора.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "action": {
+    "default_title": "Нижегородская формула",
+    "default_popup": "popup.html"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "nizhny-formula@local",
+      "strict_min_version": "115.0"
+    }
+  }
+}

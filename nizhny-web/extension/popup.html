@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Нижегородская формула</title>
+<style>
+  body { margin: 0; width: 360px; background: #10140f; color: #efe7d6; font: 14px/1.4 "Segoe UI", sans-serif; }
+  header, main { padding: 12px 14px; }
+  header { border-bottom: 1px solid #31402c; }
+  h1 { font: 500 16px Georgia, serif; margin: 0 0 4px; }
+  .muted { color: #a39886; font-size: 12px; }
+  label { display: block; margin: 8px 0 4px; color: #a39886; font-size: 12px; }
+  input[type="text"] { width: 100%; box-sizing: border-box; background: #1a2118; color: #efe7d6; border: 1px solid #31402c; border-radius: 8px; padding: 6px 8px; }
+  button { margin-top: 10px; background: #e4b15a; color: #1a1408; border: 0; border-radius: 8px; padding: 8px 12px; font: inherit; cursor: pointer; }
+  .score { font: 500 32px Georgia, serif; color: #e4b15a; }
+  .msg { min-height: 1.2em; color: #d08a55; }
+  .pill { display: inline-block; margin: 2px 4px 0 0; padding: 2px 8px; border-radius: 99px; background: #3a2a22; color: #f0c7a2; font-size: 12px; }
+  ul { padding-left: 18px; margin: 6px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Нижегородская формула</h1>
+  <div class="muted">Плагин для Firefox и Chrome. Счёт считает локальный сервер. Обучение — только в веб-интерфейсе администратора.</div>
+</header>
+<main>
+  <label for="base">Адрес сервера</label>
+  <input id="base" type="text" value="http://127.0.0.1:8000">
+  <label><input id="include" type="checkbox" checked> учитывать URL страницы</label>
+  <button id="go" type="button">Оценить эту вкладку</button>
+  <div class="msg" id="msg"></div>
+  <div id="out"></div>
+</main>
+<script src="popup.js"></script>
+</body>
+</html>

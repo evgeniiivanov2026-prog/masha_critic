@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Нижегородская формула v8.0</title>
+<style>
+  :root {
+    --bg: #10140f; --bg-2: #1a2118; --ink: #efe7d6; --muted: #a39886;
+    --line: #31402c; --amber: #e4b15a; --good: #8fbf7a; --warn: #e4b15a;
+    --weak: #d08a55; --bad: #d4655a; --card: #222b1f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 "Segoe UI", "Helvetica Neue", sans-serif; }
+  header { position: sticky; top: 0; z-index: 20; background: #0c100b; border-bottom: 1px solid var(--line); }
+  .top { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; padding: 14px 22px 0; }
+  h1 { font-family: Georgia, "Iowan Old Style", serif; font-weight: 500; font-size: 22px; margin: 0; }
+  h1 span { color: var(--amber); font-size: 14px; margin-left: 8px; }
+  .health { color: var(--muted); font-size: 13px; }
+  nav { display: flex; gap: 6px; padding: 10px 22px 0; flex-wrap: wrap; }
+  nav button { background: transparent; color: var(--muted); border: 0; border-bottom: 2px solid transparent; padding: 8px 12px; cursor: pointer; font: inherit; }
+  nav button.on { color: var(--ink); border-bottom-color: var(--amber); }
+  .scorebar { display: flex; gap: 18px; align-items: baseline; padding: 8px 22px 12px; min-height: 52px; }
+  .scorebar .num { font-family: Georgia, serif; font-size: 34px; line-height: 1; color: var(--amber); }
+  .scorebar .verdict { font-size: 18px; }
+  .scorebar .mode { color: var(--muted); font-size: 13px; }
+  main { padding: 18px 22px 48px; max-width: 1100px; }
+  section { display: none; }
+  section.on { display: block; }
+  label { display: block; color: var(--muted); font-size: 13px; margin: 10px 0 4px; }
+  input[type="text"], input[type="number"], input[type="password"], textarea {
+    width: 100%; background: var(--bg-2); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit;
+  }
+  textarea { min-height: 140px; resize: vertical; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .row3 { display: grid; grid-template-columns: 1.4fr .8fr .8fr; gap: 12px; align-items: end; }
+  button.go, button.ghost { border: 0; border-radius: 8px; padding: 10px 16px; cursor: pointer; font: inherit; }
+  button.go { background: var(--amber); color: #1a1408; font-weight: 650; }
+  button.ghost { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+  .actions { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+  .msg { margin-top: 10px; color: var(--weak); min-height: 1.2em; }
+  .msg.ok { color: var(--good); }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  .pill { border-radius: 999px; padding: 3px 10px; background: #3a2a22; color: #f0c7a2; font-size: 13px; }
+  .pill.good { background: #243324; color: var(--good); }
+  .pill.bad { background: #3a2220; color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; }
+  .bar { height: 8px; background: #2c3628; border-radius: 99px; overflow: hidden; min-width: 80px; }
+  .bar > i { display: block; height: 100%; background: var(--amber); }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 12px; }
+  .card { background: var(--card); border-radius: 10px; padding: 12px; }
+  .card b { display: block; font-family: Georgia, serif; font-size: 26px; font-weight: 500; }
+  .card span { color: var(--muted); font-size: 12px; }
+  .hits { color: var(--muted); font-size: 12px; }
+  .switch { display: flex; gap: 8px; align-items: center; color: var(--ink); }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .panel { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .delta { font-family: Georgia, serif; font-size: 42px; margin: 4px 0; }
+  .feeds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 12px; margin: 8px 0 12px; }
+  .feeds label { color: var(--ink); margin: 0; }
+  .err { background: #3a2220; color: #f0c2bc; border-radius: 10px; padding: 10px 12px; margin-top: 12px; }
+  .note { color: var(--muted); font-size: 13px; }
+  a { color: var(--amber); }
+  @media (max-width: 800px) {
+    .row, .row3, .cols, .cards, .feeds { grid-template-columns: 1fr; }
+    .top { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1>Нижегородская формула <span>v8.0</span></h1>
+    <div class="health" id="health">сервер…</div>
+  </div>
+  <nav>
+    <button type="button" data-tab="text" class="on">Разбор текста</button>
+    <button type="button" data-tab="link">По ссылке</button>
+    <button type="button" data-tab="feed">Лента</button>
+    <button type="button" data-tab="compare">Сравнение</button>
+    <button type="button" data-tab="train">Обучение</button>
+  </nav>
+  <div class="scorebar" id="scorebar">
+    <div class="num" id="live-score">—</div>
+    <div>
+      <div class="verdict" id="live-verdict">балл появится после разбора</div>
+      <div class="mode" id="live-mode">режим ещё не выбран</div>
+    </div>
+  </div>
+</header>
+<main>
+  <section id="tab-text" class="on">
+    <label for="text">Текст</label>
+    <textarea id="text" placeholder="Вставьте заметку. Например: ШОК!!! ЭКСПЕРТЫ ДОКАЗАЛИ"></textarea>
+    <div class="row">
+      <div>
+        <label for="title">Заголовок</label>
+        <input id="title" type="text" placeholder="необязательно">
+      </div>
+      <div>
+        <label for="url">URL статьи</label>
+        <input id="url" type="text" placeholder="https://www.reuters.com/...">
+      </div>
+    </div>
+    <label for="body">Тело</label>
+    <textarea id="body" placeholder="Если заполнено, попадает в разбор вместе с заголовком"></textarea>
+    <div class="row3">
+      <label class="switch"><input id="include" type="checkbox" checked> учитывать URL статьи (score_include_url)</label>
+      <div>
+        <label for="hscale">H_scale <b id="hscale-val">1.00</b></label>
+        <input id="hscale" type="range" min="0" max="3" step="0.05" value="1">
+      </div>
+      <button class="go" id="go-text" type="button">Анализ</button>
+    </div>
+    <div class="msg" id="msg-text"></div>
+    <div id="out-text"></div>
+  </section>
+  <section id="tab-link">
+    <label for="page-url">Адрес страницы</label>
+    <input id="page-url" type="text" placeholder="https://">
+    <div class="actions"><button class="go" id="go-link" type="button">Извлечь и оценить</button></div>
+    <div class="msg" id="msg-link"></div>
+    <div id="out-link"></div>
+  </section>
+  <section id="tab-feed">
+    <p class="note">Мёртвые фиды остаются в списке и попадают в блок ошибок, страница из‑за них не падает.</p>
+    <div class="feeds" id="feed-list"></div>
+    <div class="row">
+      <div>
+        <label for="feed-limit">Лимит</label>
+        <input id="feed-limit" type="number" min="1" max="100" value="12">
+      </div>
+      <div>
+        <label for="feed-since">Не раньше даты</label>
+        <input id="feed-since" type="text" placeholder="2026-01-01">
+      </div>
+    </div>
+    <label for="feed-extra">Дополнительные адреса фидов, по одному в строке</label>
+    <textarea id="feed-extra" placeholder="https://example.com/rss"></textarea>
+    <div class="actions"><button class="go" id="go-feed" type="button">Загрузить ленту</button></div>
+    <div class="msg" id="msg-feed"></div>
+    <div id="out-feed"></div>
+  </section>
+  <section id="tab-compare">
+    <label for="cmp-text">Один текст, два режима</label>
+    <textarea id="cmp-text" placeholder="Текст без адреса внутри"></textarea>
+    <div class="row">
+      <div>
+        <label for="cmp-url">URL статьи, которого нет в тексте</label>
+        <input id="cmp-url" type="text" value="https://www.reuters.com/world/example">
+      </div>
+      <div>
+        <label for="cmp-title">Заголовок</label>
+        <input id="cmp-title" type="text">
+      </div>
+    </div>
+    <div class="actions"><button class="go" id="go-compare" type="button">Сравнить</button></div>
+    <div class="msg" id="msg-compare"></div>
+    <div id="out-compare"></div>
+  </section>
+  <section id="tab-train">
+    <div class="panel">
+      <strong>Обучение только у администратора.</strong>
+      <p class="note">Сервер принимает обучение, если задана переменная окружения NIZHNY_ADMIN_TOKEN. Токен вводится здесь и уходит заголовком, в формулах страницы его нет.</p>
+      <label for="admin-token">Токен администратора</label>
+      <input id="admin-token" type="password" autocomplete="current-password">
+      <div class="row">
+        <div>
+          <label for="epochs">Эпохи</label>
+          <input id="epochs" type="number" min="1" max="200" value="40">
+        </div>
+        <div>
+          <label for="lr">Шаг lr</label>
+          <input id="lr" type="number" min="0.001" step="0.01" value="0.05">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="go" id="go-train" type="button">Обучить</button>
+        <button class="ghost" id="go-save" type="button">Сохранить веса</button>
+      </div>
+      <div class="msg" id="msg-train"></div>
+    </div>
+    <div id="out-train"></div>
+  </section>
+</main>
+<script>
+const FEEDS = [
+  ["reuters.com", "https://feeds.reuters.com/reuters/topNews"],
+  ["apnews.com", "https://apnews.com/hub/ap-top-news.rss"],
+  ["bbc.co.uk", "https://feeds.bbci.co.uk/news/world/rss.xml"],
+  ["tass.ru", "https://tass.ru/rss/v2.xml"],
+  ["interfax.ru", "https://www.interfax.ru/rss.asp"],
+  ["lenta.ru", "https://lenta.ru/rss/news"],
+  ["rbc.ru", "https://rssexport.rbc.ru/rbcnews/news/30/full.rss"],
+  ["nature.com", "https://www.nature.com/nature.rss"],
+  ["habr.com", "https://habr.com/ru/rss/all/all/"]
+];
+const VERDICT_COLOR = {
+  "добросовестная": "var(--good)", "спорная": "var(--warn)",
+  "слабодостоверная": "var(--weak)", "манипулятивная": "var(--bad)"
+};
+let lastWeights = null;
+let feedRows = [];
+let feedSortAsc = true;
+function n2(v) { return Number(v).toFixed(2); }
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+function modeLabel(included) {
+  return included ? "режим score_include_url: URL статьи учтён" : "режим CLI: URL статьи не подмешивается";
+}
+function setMsg(id, text, ok) {
+  const el = document.getElementById(id);
+  el.textContent = text || "";
+  el.className = "msg" + (ok ? " ok" : "");
+}
+function showScore(data) {
+  document.getElementById("live-score").textContent = data ? n2(data.score) : "—";
+  document.getElementById("live-verdict").textContent = data ? data.verdict : "балл появится после разбора";
+  document.getElementById("live-mode").textContent = data ? modeLabel(data.url_included) : "режим ещё не выбран";
+  document.getElementById("live-verdict").style.color = data ? (VERDICT_COLOR[data.verdict] || "inherit") : "inherit";
+}
+async function api(path, body, admin) {
+  const headers = {};
+  const opts = { method: body ? "POST" : "GET", headers };
+  if (body) { headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+  if (admin) {
+    const token = document.getElementById("admin-token").value.trim();
+    if (token) headers["X-Admin-Token"] = token;
+  }
+  let res;
+  try { res = await fetch(path, opts); }
+  catch (e) { throw new Error("Сервер не отвечает"); }
+  let data = null;
+  try { data = await res.json(); }
+  catch (e) { throw new Error("Сервер вернул не JSON"); }
+  if (!res.ok) throw new Error((data && data.error) || "Запрос отклонён");
+  return data;
+}
+function pills(data) {
+  const caps = (data.caps || []).map(c => `<span class="pill">${esc(c)}</span>`).join("");
+  const primary = `<span class="pill ${data.primary ? "good" : ""}">${data.primary ? "есть первичный источник" : "нет первичного источника"}</span>`;
+  const retracted = data.retracted ? `<span class="pill bad">опровергнуто</span>` : `<span class="pill">не опровергнуто</span>`;
+  return `<div class="pills">${caps || `<span class="pill">потолки не сработали</span>`}${primary}${retracted}</div>`;
+}
+function signalTable(data) {
+  const rows = (data.signals || []).map(s => `
+    <tr>
+      <td>${esc(s.label)}<div class="hits">${(s.hits || []).map(esc).join(" · ") || "—"}</div></td>
+      <td>${s.count}</td><td>${n2(s.activation)}</td>
+      <td><div class="bar"><i style="width:${Math.max(0, Math.min(100, s.activation * 100))}%"></i></div></td>
+    </tr>`).join("");
+  return `<table><thead><tr><th>Сигнал</th><th>Кол-во</th><th>Активация</th><th>Полоса</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function cards(data) {
+  const bodyLen = (data.body || "").length;
+  const items = [
+    ["credibility", data.credibility, "доверие к доменам"],
+    ["data_availability", data.data_availability, "цифры, таблицы, первичные данные"],
+    ["base_quality", data.base_quality, `тело ${bodyLen} симв. Пороги длины: меньше 200 снижает, больше 700 и 1500 поднимают`],
+    ["mislabel", data.mislabel, "доля лемм заголовка, которых нет в теле"]
+  ];
+  return `<div class="cards">${items.map(([k, v, hint]) => `<div class="card"><span>${k}</span><b>${n2(v)}</b><span>${hint}</span></div>`).join("")}</div>`;
+}
+function renderAnalysis(host, data) {
+  host.insertAdjacentHTML("beforeend", `
+    <p class="note">Домены: ${esc((data.domains || []).join(", ") || "—")} · заголовок ${(data.title || "").length} симв. · тело ${(data.body || "").length} симв.</p>
+    ${pills(data)}${signalTable(data)}${cards(data)}`);
+}
+function explainDelta(payload) {
+  const d = Number(payload.delta_score);
+  const a = payload.with_url, b = payload.without_url;
+  if (Math.abs(d) < 0.001) {
+    return `Балл совпал. Credibility ${n2(a.credibility)} против ${n2(b.credibility)}. Если домен разный, оба режима упёрлись в один пол или потолок.`;
+  }
+  const dir = d > 0 ? "выше" : "ниже";
+  return `С URL статьи балл на ${n2(Math.abs(d))} ${dir}. Credibility ${n2(a.credibility)} (${esc((a.domains || []).join(", "))}) против ${n2(b.credibility)} (${esc((b.domains || []).join(", "))}).`;
+}
+document.getElementById("hscale").addEventListener("input", (e) => {
+  document.getElementById("hscale-val").textContent = n2(e.target.value);
+});
+document.querySelectorAll("nav button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach(b => b.classList.remove("on"));
+    document.querySelectorAll("main section").forEach(s => s.classList.remove("on"));
+    btn.classList.add("on");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("on");
+  });
+});
+document.getElementById("go-text").addEventListener("click", async () => {
+  setMsg("msg-text", "Считаю…");
+  document.getElementById("out-text").innerHTML = "";
+  try {
+    const data = await api("/api/analyze", {
+      text: document.getElementById("text").value,
+      title: document.getElementById("title").value,
+      body: document.getElementById("body").value,
+      url: document.getElementById("url").value,
+      include_url: document.getElementById("include").checked,
+      H_scale: Number(document.getElementById("hscale").value)
+    });
+    showScore(data);
+    renderAnalysis(document.getElementById("out-text"), data);
+    setMsg("msg-text", `Готово. Тело в разборе: ${(data.body || "").length} символов.`, true);
+  } catch (e) { setMsg("msg-text", e.message); }
+});
+document.getElementById("go-link").addEventListener("click", async () => {
+  setMsg("msg-link", "Открываю страницу…");
+  document.getElementById("out-link").innerHTML = "";
+  try {
+    const data = await api("/api/fetch", { url: document.getElementById("page-url").value });
+    if (!data.ok) { showScore(null); setMsg("msg-link", data.error || "Страница не открылась"); return; }
+    showScore(data.analysis);
+    document.getElementById("out-link").innerHTML = `<div class="panel"><div>${esc(data.title || "без заголовка")}</div><p class="note">метод ${esc(data.method || "—")} · уверенность ${n2(data.confidence)} · кандидатов ${data.candidates} · символов ${data.chars} · дата ${esc(data.date || "—")}</p></div>`;
+    renderAnalysis(document.getElementById("out-link"), data.analysis);
+    setMsg("msg-link", "Текст извлечён.", true);
+  } catch (e) { setMsg("msg-link", e.message); }
+});
+const feedHost = document.getElementById("feed-list");
+FEEDS.forEach(([name]) => {
+  const label = document.createElement("label");
+  label.innerHTML = `<input type="checkbox" value="${name}" checked> ${name}`;
+  feedHost.appendChild(label);
+});
+function drawFeed() {
+  const rows = feedRows.slice().sort((a, b) => feedSortAsc ? a.score - b.score : b.score - a.score);
+  const body = rows.map(r => {
+    const href = /^https?:\/\//i.test(r.url || "") ? esc(r.url) : "";
+    const title = esc(r.title || r.url || "—");
+    return `<tr><td>${href ? `<a href="${href}" target="_blank" rel="noopener">${title}</a>` : title}</td><td>${esc(r.source || "")}</td><td>${esc(r.date || "")}</td><td>${n2(r.score)}</td><td>${esc(r.verdict || "")}</td><td>${esc((r.caps || []).join(" "))}</td></tr>`;
+  }).join("");
+  const tbody = document.querySelector("#out-feed tbody");
+  if (tbody) tbody.innerHTML = body || `<tr><td colspan="6">Записей нет</td></tr>`;
+}
+document.getElementById("go-feed").addEventListener("click", async () => {
+  setMsg("msg-feed", "Собираю ленту…");
+  const feeds = [...feedHost.querySelectorAll("input:checked")].map(el => el.value);
+  document.getElementById("feed-extra").value.split("\n").forEach(line => { const url = line.trim(); if (url) feeds.push(url); });
+  try {
+    const data = await api("/api/feed", {
+      feeds, limit: Number(document.getElementById("feed-limit").value || 12),
+      since: document.getElementById("feed-since").value
+    });
+    feedRows = data.items || [];
+    const errs = data.errors || [];
+    document.getElementById("out-feed").innerHTML = `<table><thead><tr><th>Заголовок</th><th>Источник</th><th>Дата</th><th id="sort-score" style="cursor:pointer">Балл</th><th>Вердикт</th><th>Потолки</th></tr></thead><tbody></tbody></table>${errs.length ? `<div class="err"><strong>Ошибки фидов</strong><ul>${errs.map(e => `<li>${esc(e.error)}${e.feed ? " — " + esc(e.feed) : ""}</li>`).join("")}</ul></div>` : ""}`;
+    drawFeed();
+    document.getElementById("sort-score").addEventListener("click", () => { feedSortAsc = !feedSortAsc; drawFeed(); });
+    setMsg("msg-feed", `Записей: ${data.count}. Ошибок фидов: ${errs.length}.`, true);
+  } catch (e) { setMsg("msg-feed", e.message); }
+});
+document.getElementById("go-compare").addEventListener("click", async () => {
+  setMsg("msg-compare", "Сравниваю режимы…");
+  try {
+    const data = await api("/api/compare", {
+      text: document.getElementById("cmp-text").value,
+      title: document.getElementById("cmp-title").value,
+      url: document.getElementById("cmp-url").value
+    });
+    showScore(data.with_url);
+    document.getElementById("out-compare").innerHTML = `<p class="delta">${data.delta_score > 0 ? "+" : ""}${n2(data.delta_score)}</p><p>${explainDelta(data)}</p><div class="cols"><div class="panel"><h3>include_url включён · ${n2(data.with_url.score)} · ${esc(data.with_url.verdict)}</h3>${pills(data.with_url)}${cards(data.with_url)}</div><div class="panel"><h3>include_url выключен · ${n2(data.without_url.score)} · ${esc(data.without_url.verdict)}</h3>${pills(data.without_url)}${cards(data.without_url)}</div></div>`;
+    setMsg("msg-compare", "Оба режима посчитаны на сервере.", true);
+  } catch (e) { setMsg("msg-compare", e.message); }
+});
+function drawTrain(weights, metrics) {
+  const w = weights || {};
+  const sw = w.sensor_weight || w;
+  const rows = Object.keys(sw).filter(k => typeof sw[k] === "number").map(k => `<tr><td>${esc(k)}</td><td><input data-w="${esc(k)}" type="number" step="0.05" value="${n2(sw[k])}"></td></tr>`).join("");
+  const m = metrics ? `<div class="cards">${[["F1", metrics.f1], ["precision", metrics.precision], ["recall", metrics.recall], ["accuracy", metrics.accuracy]].map(([k, v]) => `<div class="card"><span>${k}</span><b>${n2(v)}</b></div>`).join("")}</div><p class="note">n_train ${metrics.n_train} · n_test ${metrics.n_test}. Метрики на тестовой части. F1 равен 0, если не было ни одного верного срабатывания на шум.</p><pre class="note">${esc((metrics.log || []).join("\n"))}</pre>` : "";
+  document.getElementById("out-train").innerHTML = m + `<table><thead><tr><th>Сенсор</th><th>Вес</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+document.getElementById("go-train").addEventListener("click", async () => {
+  setMsg("msg-train", "Обучаю…");
+  try {
+    const data = await api("/api/train", { epochs: Number(document.getElementById("epochs").value), lr: Number(document.getElementById("lr").value) }, true);
+    lastWeights = await api("/api/weights");
+    drawTrain(lastWeights, data);
+    setMsg("msg-train", "Обучение закончено, веса записаны.", true);
+  } catch (e) { setMsg("msg-train", e.message); }
+});
+document.getElementById("go-save").addEventListener("click", async () => {
+  const sensor_weight = {};
+  document.querySelectorAll("#out-train input[data-w]").forEach(el => { sensor_weight[el.dataset.w] = Number(el.value); });
+  if (!Object.keys(sensor_weight).length) { setMsg("msg-train", "Сначала загрузите веса"); return; }
+  try {
+    lastWeights = await api("/api/weights", { sensor_weight }, true);
+    drawTrain(lastWeights, null);
+    setMsg("msg-train", "Веса сохранены.", true);
+  } catch (e) { setMsg("msg-train", e.message); }
+});
+api("/api/health").then(h => {
+  document.getElementById("health").textContent = `${h.version} · морфология ${h.morph ? "есть" : "нет, mislabel грубее"} · веса ${h.weights ? "с диска" : "ещё не обучались"}`;
+}).catch(() => { document.getElementById("health").textContent = "сервер не отвечает"; });
+api("/api/weights").then(w => { lastWeights = w; drawTrain(w, null); }).catch(() => {});
+</script>
+</body>
+</html>
