@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.nizhny_cache/
+.weights_*.tmp
+dataset.jsonl
+weights_v80.json
